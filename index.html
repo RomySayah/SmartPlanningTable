@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="UTF-8">
+		<title>Smart Planning Table</title>
+		<link rel="stylesheet" href="style.css">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.8.0/p5.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.8.0/addons/p5.dom.min.js"></script>
+        <script src="https://unpkg.com/ml5@0.3.1/dist/ml5.min.js" type="text/javascript"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        
+	</head>
+
+<body>
+    <p style="position: absolute; font-family: courier; text-align : left; left:200px;top:340px; width:250px; height:auto;z-index:0;">
+           If you don't have the Smart Table set-up, click on the table icon for assembly process.   
+    </p>
+    
+
+    <div class="booth">
+        <canvas id="canvas" width="512" height="512"></canvas> <!------black + color------->
+        </div>
+        <video id="videoElement" style="position: absolute;left:200px;top:150px; width:250px; height:auto;z-index:0;"
+               width="200" height"200" autoplay="true">
+            No Video support in your browser...        
+        </video>
+    <!------you might need to remove this------->
+    <div id="input"></div>
+    <button class="btn" id="transferBtn">Transfer</button>  
+    <img id="output" src="images/blank.png">
+
+    
+    
+
+    <script type="text/javascript">
+        
+        let inputImg, currentImg, inputCanvas, output, statusMsg, pix2pix, transferBtn, modelReady = false, isTransfering = false;         
+               
+        let annotationToggle = true;
+        
+        var video = document.querySelector("#videoElement");
+        var canvas = document.getElementById('canvas');
+        var context = canvas.getContext('2d');
+        
+        if (navigator.mediaDevices.getUserMedia) {       
+	       navigator.mediaDevices.getUserMedia({video: true})
+            .then(function(stream) {
+            video.srcObject = stream;
+            })
+            .catch(function(err0r) {
+            console.log("Something went wrong!");
+            });
+        }
+        
+        video.addEventListener('play',function(){
+            draw(this, context,512,512);
+        },false);
+        
+        var threshold = 25;
+        var Orange; var Blue; var Purple; var Fushia;
+        
+        
+        function setup()
+        {
+            Orange = color(198,116,30); Blue = color(80,146,132); Purple = color(125,66,86); Fushia = color(207,58,69);
+            //devicePixelRatio(1);
+
+            
+            output = select('#output');
+            statusMsg = select('#status');
+
+            transferBtn = select('#transferBtn');
+            pixelDensity(1);
+
+            pix2pix = ml5.pix2pix('models/MY_MODELS_BtoA.pict', modelLoaded);
+            
+            
+        }
+        
+
+        
+
+        function draw(video, context, width, height)
+        {
+            threshold = 80; //I am doing this manually for other colors, it is not the same for each 
+            var avgXO = 0; var avgYO = 0;  var countO = 0;  
+            var avgXB = 0; var avgYB = 0;  var countB = 0; 
+            var avgXP = 0; var avgYP = 0;  var countP = 0;
+            var avgXF = 0; var avgYF = 0;  var countF = 0;
+            
+            var image, data, i, r1, g1, b1;
+            context.drawImage(video,0,0,width,height);
+            
+            image = context.getImageData(0,0,width,height);
+            data = image.data;
+            
+            context.beginPath();    
+            context.fillStyle = "rgb(0,0,0)";
+            context.fillRect(0, 0, 512, 512);
+            
+            for(y=0; y<height; y++){
+                for(x=0; x<width;x++){
+                    var index = (x + y*width)*4;
+                    r1 = data[index];
+                    g1 = data[index +1];
+                    b1 = data[index +2];
+                    
+                    var rO = 198; var gO = 116; var bO = 30;                 
+                    var dO = distSq(r1, g1, b1,rO,gO,bO);      
+                    if (dO < threshold*threshold)
+                    {
+                        avgXO += x; avgYO += y; countO++;
+                    }               
+                    var rB = 80; var gB = 146; var bB = 132;
+                    var dB = distSq(r1, g1, b1,rB,gB,bB);      
+                    if (dB < 5000)
+                    {
+                        avgXB += x; avgYB += y; countB++;
+                    }
+                    var rP = 125; var gP = 66; var bP = 86;
+                    var dP = distSq(r1, g1, b1,rP,gP,bP);      
+                    if (dP < 5000)
+                    {
+                        avgXP += x; avgYP += y; countP++;
+                    }
+                    var rF = 207; var gF = 58; var bF = 69;
+                    var dF = distSq(r1, g1, b1,rF,gF,bF);      
+                    if (dF < 1000)
+                    {
+                        avgXF += x; avgYF += y; countF++;
+                    }
+                }                  
+            }
+
+            if (countO>0)
+            {
+                avgXO =avgXO/countO; avgYO = avgYO / countO;
+                context.beginPath();    
+                context.fillStyle = "rgb(198,116,30)";
+                context.fillRect(avgXO-75, avgYO-100, 150, 150);
+            }
+            if (countB>0)
+            {
+                avgXB =avgXB/countB; avgYB = avgYB / countB;
+                context.beginPath();    
+                context.fillStyle = "rgb(80,146,132)";
+                context.fillRect(avgXB-75, avgYB-100, 150, 150);
+            }
+            if (countP>0)
+            {
+                avgXP =avgXP/countP; avgYP = avgYP/ countP;
+                context.beginPath();    
+                context.fillStyle = "rgb(125,66,86)";
+                context.fillRect(avgXP-45, avgYP-50, 75, 100);
+            }
+            if (countF>0)
+            {
+                avgXF =avgXF/countF; avgYF = avgYF/ countF;
+                context.beginPath();    
+                context.fillStyle = "rgb(207,58,69)";
+                context.fillRect(avgXF-75, avgYF-100, 150, 150);
+            }
+  
+            setTimeout(draw,10,video,context,width,height);    
+            
+            
+            
+
+        }
+
+        
+        function distSq(x1, y1, z1, x2, y2, z2) {
+            var d = (x2-x1)*(x2-x1) + (y2-y1)*(y2-y1) +(z2-z1)*(z2-z1);
+            return d;
+        }
+        
+        
+        function modelLoaded() { 
+            modelReady = true;
+            transfer();
+            transferBtn.mousePressed(function(){ 
+                
+                
+                
+                
+                var inputData = context.toDataURL();
+                inputData.class('border-box').parent('input');
+            
+                inputImg = loadImage(inputData, drawImage);
+                currentImg = inputImg;
+
+                transfer() 
+            });   
+        }
+        
+        function drawImage() {
+            image(inputImg,0,0, 256, 256);
+        }
+        
+        
+
+        function transfer() {
+            isTransfering = true;
+            const canvasElement = select('canvas').elt;
+            // Apply pix2pix transformation
+            pix2pix.transfer(canvasElement, function(err, result) {
+            if (err) {
+                console.log(err);
+            }
+            if (result && result.src) {
+                isTransfering = false;    
+                output.elt.src = result.src;
+                }
+            });
+        }
+
+        
+    </script>
+     
+    <div>
+    
+        <img 	 src="images/romy.png" alt="Romy's Portfolio" onclick="document.location.href = 'https://romysayah.com/'" style="position: absolute;right:50px;top:30px; width:120px; height:auto;z-index:0;cursor: pointer;">
+        <a class="to-top" href="concept.html">
+        <img 	 src="images/concept4.jpg" alt="Concept" style="position: absolute;right:50px;top:140px; width:120px; height:auto;z-index:0;cursor: pointer;">
+        </a>
+        <a class="to-top" href="examples.html">
+        <img src="images/legend.png" alt="Examples" style="position: absolute;right:50px;top:230px; width:120px; height:auto;z-index:0;cursor: pointer;">
+        </a>               
+    </div>
+    
+    	
+  	
+</body>
+</html>
